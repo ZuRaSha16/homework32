@@ -1,0 +1,13 @@
+import { IsNotEmpty, IsString, IsEmail, Length } from 'class-validator';
+
+export class SignInDto {
+  @IsEmail()
+  @IsNotEmpty()
+  @IsString()
+  email: string;
+
+  @IsNotEmpty()
+  @IsString()
+  @Length(6, 20)
+  password: string;
+}
