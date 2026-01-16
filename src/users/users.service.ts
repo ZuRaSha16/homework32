@@ -3,70 +3,79 @@ import {
   forwardRef,
   Inject,
   Injectable,
-  NotFoundException,
 } from '@nestjs/common';
-import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { isValidObjectId, Model } from 'mongoose';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { User } from './schema/user.schema';
-import { Post } from 'src/posts/schema/post.schema';
 import { PostsService } from 'src/posts/posts.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel('user') private userModel: Model<User>,
-    //added    // @InjectModel('post') private postModel: Model<any>
     @Inject(forwardRef(() => PostsService))
     private postsService: PostsService,
   ) {}
+
   async create(createUserDto: CreateUserDto) {
-    const createUser = await this.userModel.create(createUserDto);
-    return createUser;
+    return this.userModel.create(createUserDto);
   }
 
-  findAll() {
+  async findAll() {
     return this.userModel.find().populate('posts');
   }
 
-  async findOneByEmail(email: string) {
-    const user = await this.userModel
-      .findOne({ email: email })
-      .select('+password');
+  async findOne(id: string) {
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const user = await this.userModel.findById(id);
+    if (!user) throw new BadRequestException('User not found');
+
     return user;
   }
 
-  async findOne(id: string) {
-    const findUser = await this.userModel.findById(id);
-    return findUser;
+  async findOneByEmail(email: string) {
+    return this.userModel.findOne({ email }).select('+password');
   }
 
   async update(id: string, updateUserDto: UpdateUserDto) {
-    const updateUser = await this.userModel.findByIdAndUpdate(
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
+    const updatedUser = await this.userModel.findByIdAndUpdate(
       id,
       updateUserDto,
       { new: true },
     );
-    return updateUser;
+
+    if (!updatedUser) throw new BadRequestException('User not found');
+
+    return updatedUser;
   }
 
   async remove(id: string) {
-    if (!isValidObjectId(id)) throw new BadRequestException();
+    if (!isValidObjectId(id)) {
+      throw new BadRequestException('Invalid user ID');
+    }
+
     const deletedUser = await this.userModel.findByIdAndDelete(id);
-    if (!deletedUser) throw new BadRequestException();
-    //added
-    // await this.postModel.deleteMany({user:deletedUser._id})
+    if (!deletedUser) throw new BadRequestException('User not found');
+
     await this.postsService.removePostByUserId(deletedUser._id);
+
     return deletedUser;
   }
 
-  async addPost(postId, userId) {
-    const updatedUser = await this.userModel.findByIdAndUpdate(
+  async addPost(postId: string, userId: string) {
+    return this.userModel.findByIdAndUpdate(
       userId,
       { $push: { posts: postId } },
       { new: true },
     );
-    return updatedUser;
   }
 }
